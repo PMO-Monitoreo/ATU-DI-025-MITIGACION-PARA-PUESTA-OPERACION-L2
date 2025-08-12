@@ -1,32 +1,148 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Puntos</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa L2 – Poligonal</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .legend {
+      background: white; padding: 8px 10px; border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.3); font: 12px/1.2 sans-serif;
+    }
+    .legend .item { display:flex; align-items:center; gap:8px; margin:4px 0 }
+    .legend .swatch { width:16px; height:16px; border-radius:4px; border:1px solid #0003 }
+    .loading {
+      position: absolute; inset: 12px auto auto 12px;
+      background: rgba(255,255,255,.95); padding:6px 10px; border-radius:6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2); z-index: 1000;
+      font: 12px/1.2 sans-serif;
+    }
+    .err {
+      position:absolute; left:12px; bottom:12px; right:12px;
+      background:#ffe9e9; color:#8b0000; padding:8px 10px; border-radius:6px;
+      box-shadow:0 1px 4px rgba(0,0,0,.2); font:12px/1.2 sans-serif;
+      display:none; z-index:1000;
+    }
+  </style>
 </head>
 <body>
-    <div id="map" style="height: 600px;"></div>
-    <script>
-        // Crear el mapa con una vista inicial
-        var map = L.map('map').setView([0, 0], 3); // Cambia las coordenadas de inicio si es necesario
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  <div id="map"></div>
+  <div id="loading" class="loading">Cargando datos…</div>
+  <div id="err" class="err"></div>
 
-        // Cargar el archivo GeoJSON desde el enlace
-        fetch('https://raw.githubusercontent.com/PMO-Monitoreo/ATU-DI-025-MITIGACION-PARA-PUESTA-OPERACION-L2/refs/heads/main/L2_R4.json')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    onEachFeature: function (feature, layer) {
-                        // Ajustar el comportamiento de los puntos, por ejemplo, agregar popups
-                        layer.bindPopup(feature.properties.name); // Asegúrate de que "name" esté en tus propiedades
-                    }
-                }).addTo(map);
-            })
-            .catch(error => console.error('Error al cargar el archivo JSON:', error));
-    </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // 1) URL de tu GeoJSON (RAW de GitHub)
+    const DATA_URL =
+      "https://raw.githubusercontent.com/PMO-Monitoreo/ATU-DI-025-MITIGACION-PARA-PUESTA-OPERACION-L2/refs/heads/main/L2_R4.json";
+
+    // 2) Mapas base
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20, attribution: '&copy; OpenStreetMap'
+    });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/' +
+      'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 20, attribution: 'Tiles &copy; Esri'
+    });
+
+    // 3) Mapa
+    const map = L.map('map', { center: [-12.05, -77.05], zoom: 11, layers: [osm] });
+    L.control.scale().addTo(map);
+
+    // 4) Capas de datos separadas por geometría
+    const pointsLayer = L.layerGroup();
+    const linesLayer  = L.layerGroup();
+    const polysLayer  = L.layerGroup();
+
+    // 5) Estilos
+    const lineStyle = {
+      color: "#1464ff",   // azul fuerte
+      weight: 6,
+      opacity: 0.9,
+      lineCap: "round",
+      lineJoin: "round"
+    };
+    const polyStyle = {
+      color: "#ff7f0e",
+      weight: 2,
+      opacity: 0.9,
+      fillColor: "#ff7f0e",
+      fillOpacity: 0.25
+    };
+
+    // 6) Función popup genérica
+    function buildPopup(props = {}) {
+      const entries = Object.entries(props);
+      if (!entries.length) return "Sin propiedades";
+      const html = entries.map(([k,v]) => `<tr><th style="text-align:left;padding-right:8px">${k}</th><td>${v}</td></tr>`).join("");
+      return `<table>${html}</table>`;
+    }
+
+    // 7) Cargar GeoJSON
+    fetch(DATA_URL, { cache: "no-cache" })
+      .then(r => {
+        if (!r.ok) throw new Error("No se pudo descargar el GeoJSON (" + r.status + ")");
+        return r.json();
+      })
+      .then(geojson => {
+        document.getElementById('loading').style.display = 'none';
+
+        // Separar por tipo de geometría
+        // a) Puntos
+        L.geoJSON(geojson, {
+          filter: f => f.geometry && f.geometry.type === "Point",
+          pointToLayer: (feature, latlng) =>
+            L.circleMarker(latlng, { radius: 5, color: "#005bbb", weight: 2, fillColor:"#cfe2ff", fillOpacity:0.9 })
+              .bindPopup(buildPopup(feature.properties))
+        }).addTo(pointsLayer);
+
+        // b) Líneas (LineString / MultiLineString)
+        L.geoJSON(geojson, {
+          filter: f => f.geometry && /LineString$/i.test(f.geometry.type),
+          style: () => lineStyle,
+          onEachFeature: (feature, layer) => layer.bindPopup(buildPopup(feature.properties))
+        }).addTo(linesLayer);
+
+        // c) Polígonos (Polygon / MultiPolygon)
+        L.geoJSON(geojson, {
+          filter: f => f.geometry && /Polygon$/i.test(f.geometry.type),
+          style: () => polyStyle,
+          onEachFeature: (feature, layer) => layer.bindPopup(buildPopup(feature.properties))
+        }).addTo(polysLayer);
+
+        // Agregar al mapa
+        pointsLayer.addTo(map);
+        linesLayer.addTo(map);
+        polysLayer.addTo(map);
+
+        // Control de capas
+        L.control.layers(
+          { "OpenStreetMap": osm, "Satelital (Esri)": esri },
+          {
+            "Puntos": pointsLayer,
+            "Poligonal / Trazas": linesLayer,
+            "Polígonos": polysLayer
+          },
+          { collapsed: false }
+        ).addTo(map);
+
+        // Ajustar vista a todo lo cargado
+        const all = L.featureGroup([pointsLayer, linesLayer, polysLayer]);
+        try {
+          map.fitBounds(all.getBounds(), { padding: [20,20] });
+        } catch(e) {
+          // Si no hay geometrías, no ajustar
+        }
+      })
+      .catch(err => {
+        document.getElementById('loading').style.display = 'none';
+        const el = document.getElementById('err');
+        el.textContent = "Error cargando datos: " + err.message;
+        el.style.display = 'block';
+        console.error(err);
+      });
+  </script>
 </body>
 </html>
