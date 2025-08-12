@@ -30,7 +30,7 @@
   (async function(){
     const showErr = msg => { const el = document.getElementById('err'); el.textContent = msg; el.style.display='block'; };
     try {
-      const DATA_BASE = "https://raw.githubusercontent.com/PMO-Monitoreo/ATU-DI-025-MITIGACION-PARA-PUESTA-OPERACION-L2/refs/heads/main/L2_R4.json";
+      const DATA_BASE = "https://raw.githubusercontent.com/PMO-Monitoreo/ATU-DI-023-APLI-Proyecto-L3/refs/heads/main/kml%20L3.json";
       const DATA_URL = DATA_BASE + "?nocache=" + Date.now(); // rompe caché
 
       const osm  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20, attribution:'&copy; OSM'});
