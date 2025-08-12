@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Puntos</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
+</head>
+<body>
+    <div id="map" style="height: 600px;"></div>
+    <script>
+        // Crear el mapa con una vista inicial
+        var map = L.map('map').setView([0, 0], 3); // Cambia las coordenadas de inicio si es necesario
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Cargar el archivo GeoJSON desde el enlace
+        fetch('https://raw.githubusercontent.com/PMO-Monitoreo/ATU-DI-025-MITIGACION-PARA-PUESTA-OPERACION-L2/refs/heads/main/L2_R4.json')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    onEachFeature: function (feature, layer) {
+                        // Ajustar el comportamiento de los puntos, por ejemplo, agregar popups
+                        layer.bindPopup(feature.properties.name); // Asegúrate de que "name" esté en tus propiedades
+                    }
+                }).addTo(map);
+            })
+            .catch(error => console.error('Error al cargar el archivo JSON:', error));
+    </script>
+</body>
+</html>
